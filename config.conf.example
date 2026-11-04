@@ -1,0 +1,93 @@
+# ryzen-power configuration
+#
+# Power values are in milliwatts (mW). Watts are also accepted: 45w.
+# Temperature is in degrees Celsius.
+#
+# Profiles are selected by name:
+#   ryzen-power eco
+#   ryzen-power balanced
+#   ryzen-power performance
+#
+# List profiles:        ryzen-power list
+# Preview the OSD:      ryzen-power preview balanced
+#
+# Custom OSD icons live in:
+#   ~/.config/ryzen-power/themes/<theme>/<profile>.img
+# Select a theme with the "theme" option below.
+
+[general]
+# Profile used when ryzen-power is started without an argument.
+default = balanced
+
+# Custom icon theme directory name. Icons are loaded from
+# ~/.config/ryzen-power/themes/<theme>/<profile>.img
+# Missing icons fall back to themes/default/ and then to built-in glyphs.
+theme = default
+
+# Show the translucent OSD when a profile is applied or previewed.
+osd = true
+
+# Screen edge: bottom | center | top
+osd_position = bottom
+# Distance from the top/bottom edge in pixels (ignored for center).
+osd_margin = 110
+# Minimum OSD width in pixels.
+osd_width = 380
+# How long the OSD stays fully visible, in milliseconds.
+osd_timeout_ms = 1400
+
+# Card appearance.
+background_opacity = 0.88
+border_radius = 18
+
+# Icon placement: left | right | top | none
+icon_position = left
+icon_size = 24
+# Icon background: circle | rounded | none
+icon_background = circle
+icon_padding = 9
+
+# Text and bar visibility.
+show_badge = true
+show_subtitle = true
+show_bar = true
+bar_height = 8
+# Bar position: bottom | top
+bar_position = bottom
+# Text alignment: left | center
+text_align = left
+
+# Font sizes in pixels.
+title_size = 16
+subtitle_size = 12
+badge_size = 18
+
+# Suggest the one-time polkit rule installation after a password prompt.
+suggest_polkit = true
+
+[eco]
+label = Power Saver
+icon = power-profile-power-saver-symbolic
+color = #4ccb74
+stapm = 25000
+slow = 30000
+fast = 35000
+tctl = 85
+
+[balanced]
+label = Balanced
+icon = power-profile-balanced-symbolic
+color = #58a6ff
+stapm = 45000
+slow = 52000
+fast = 62000
+tctl = 90
+
+[performance]
+label = Performance
+icon = power-profile-performance-symbolic
+color = #ff9d4d
+stapm = 54000
+slow = 62000
+fast = 72000
+tctl = 95

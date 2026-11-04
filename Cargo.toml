@@ -1,0 +1,21 @@
+[package]
+name = "ryzen-power"
+version = "0.1.0"
+edition = "2024"
+description = "Ryzen power-limit profile switcher with a translucent OSD"
+license = "MIT"
+repository = "https://github.com/hardWorker254/ryzen-power"
+
+[[bin]]
+name = "ryzen-power"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+gtk4 = "0.11"
+gtk4-layer-shell = "0.8"
+libc = "0.2"
+
+[profile.release]
+strip = true
+lto = "thin"
