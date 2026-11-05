@@ -16,6 +16,7 @@ pub const DEFAULT_CONFIG: &str = r#"# ryzen-power configuration
 #
 # List profiles:        ryzen-power list
 # Preview the OSD:      ryzen-power preview balanced
+# Next profile:         ryzen-power --next
 #
 # Custom OSD icons live in:
 #   ~/.config/ryzen-power/themes/<theme>/<profile>.img
@@ -606,6 +607,27 @@ impl Config {
             .default_profile
             .as_deref()
             .and_then(|name| self.resolve_profile(name))
+    }
+
+    /// File that remembers the last profile applied by ryzen-power.
+    /// Lives next to the config: `config.conf` -> `config.state`.
+    pub fn state_path(&self) -> PathBuf {
+        self.path.with_extension("state")
+    }
+
+    /// Name of the last profile applied by ryzen-power, if any.
+    pub fn last_applied_profile(&self) -> Option<String> {
+        let text = fs::read_to_string(self.state_path()).ok()?;
+        let name = text.trim();
+        (!name.is_empty()).then(|| name.to_string())
+    }
+
+    /// Remember `name` as the last applied profile so `--next` can continue
+    /// the cycle from it.
+    pub fn record_applied_profile(&self, name: &str) -> Result<()> {
+        let path = self.state_path();
+        fs::write(&path, format!("{name}\n"))
+            .with_context(|| format!("Could not write {}", path.display()))
     }
 }
 

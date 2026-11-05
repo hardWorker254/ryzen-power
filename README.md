@@ -17,6 +17,7 @@ Tested on an **AMD Ryzen 7 PRO 8845HS** with Artix Linux + Hyprland.
 - Falls back to the default theme, the profile icon, and then to built-in glyphs.
 - Extensive OSD layout controls: position, margin, width, icon placement/size/background, text alignment, bar position/height, font sizes, opacity, and corner radius.
 - Uses `pkexec` when needed, and can install a one-time polkit rule to avoid password prompts.
+- Cycles through profiles in config order with `--next`, remembering the last applied profile.
 - Short-lived and CLI-only: apply a profile, show the OSD, exit. No daemon or tray.
 
 ## Requirements
@@ -94,6 +95,7 @@ ryzen-power status
 ryzen-power eco            # power saver
 ryzen-power balanced       # balanced
 ryzen-power performance    # performance
+ryzen-power --next         # cycle to the next profile in config order
 ryzen-power preview eco    # show the OSD without changing limits
 ```
 
@@ -111,6 +113,8 @@ ryzen-power preview balanced --time 3
 
 `--time SECONDS` overrides `osd_timeout_ms` for that run and accepts a positive whole number of seconds.
 
+`--next` applies the profile after the last one applied by ryzen-power, following the profile order in the config file and wrapping around (`eco → balanced → performance → eco …`). The last applied profile is remembered in `config.state` next to the config file; when nothing has been recorded yet, the cycle starts with the first profile. `preview` does not change the recorded profile, and a failed apply keeps the previous one. `--next` combines with `--time`, `--no-osd`, and `--dry-run`, but not with a profile name.
+
 Inspect the command that would be executed:
 
 ```bash
@@ -124,6 +128,7 @@ ryzen-power --dry-run balanced
 bind = SUPER, F1, exec, ryzen-power eco
 bind = SUPER, F2, exec, ryzen-power balanced
 bind = SUPER, F3, exec, ryzen-power performance
+bind = SUPER, F4, exec, ryzen-power --next --time 2
 ```
 
 If `~/.local/bin` is not in Hyprland's `PATH`, use the full path to the binary.

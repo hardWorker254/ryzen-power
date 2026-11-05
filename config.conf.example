@@ -10,6 +10,7 @@
 #
 # List profiles:        ryzen-power list
 # Preview the OSD:      ryzen-power preview balanced
+# Next profile:         ryzen-power --next
 #
 # Custom OSD icons live in:
 #   ~/.config/ryzen-power/themes/<theme>/<profile>.img

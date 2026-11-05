@@ -29,6 +29,11 @@ enum Command {
         dry_run: bool,
         time_secs: Option<u64>,
     },
+    Next {
+        no_osd: bool,
+        dry_run: bool,
+        time_secs: Option<u64>,
+    },
     Preview {
         profile: String,
         time_secs: Option<u64>,
@@ -57,6 +62,11 @@ fn run() -> Result<()> {
             dry_run,
             time_secs,
         ),
+        Command::Next {
+            no_osd,
+            dry_run,
+            time_secs,
+        } => apply_next_profile(config_path.as_deref(), no_osd, dry_run, time_secs),
         Command::Preview { profile, time_secs } => {
             preview_profile(config_path.as_deref(), &profile, time_secs)
         }
@@ -75,6 +85,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
     let mut config_path = None;
     let mut no_osd = false;
     let mut dry_run = false;
+    let mut next = false;
     let mut time_secs = None;
     let mut positional: Vec<String> = Vec::new();
 
@@ -89,6 +100,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
             }
             "--no-osd" => no_osd = true,
             "--dry-run" => dry_run = true,
+            "--next" => next = true,
             "--time" => {
                 index += 1;
                 let value = args
@@ -118,16 +130,26 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
         index += 1;
     }
 
+    if next && !positional.is_empty() {
+        bail!("--next cannot be combined with a profile or command");
+    }
+
     if positional.is_empty() {
-        return Ok((
+        let command = if next {
+            Command::Next {
+                no_osd,
+                dry_run,
+                time_secs,
+            }
+        } else {
             Command::Apply {
                 profile: None,
                 no_osd,
                 dry_run,
                 time_secs,
-            },
-            config_path,
-        ));
+            }
+        };
+        return Ok((command, config_path));
     }
 
     let command = match positional[0].as_str() {
@@ -241,6 +263,10 @@ fn apply_profile(
         }
     };
 
+    if let Err(err) = config.record_applied_profile(&profile.name) {
+        eprintln!("Warning: could not save the current profile: {err:#}");
+    }
+
     println!(
         "Profile \"{}\" applied: {}",
         profile.label,
@@ -266,6 +292,42 @@ fn apply_profile(
     }
 
     Ok(())
+}
+
+/// Name of the profile that follows `current` in config-file order, wrapping
+/// around at the end. An unknown or missing `current` starts the cycle at the
+/// first profile.
+fn next_profile_name(config: &Config, current: Option<&str>) -> Result<String> {
+    let current = current.map(str::to_lowercase);
+    let index = current.as_deref().and_then(|name| {
+        config
+            .profiles
+            .iter()
+            .position(|profile| profile.name == name)
+    });
+    let next = match index {
+        Some(index) => (index + 1) % config.profiles.len(),
+        None => 0,
+    };
+    config
+        .profiles
+        .get(next)
+        .map(|profile| profile.name.clone())
+        .context("The config contains no profiles")
+}
+
+/// Apply the profile after the last one applied by ryzen-power
+/// (`ryzen-power --next`), recording the new one on success.
+fn apply_next_profile(
+    config_path: Option<&std::path::Path>,
+    no_osd: bool,
+    dry_run: bool,
+    time_secs: Option<u64>,
+) -> Result<()> {
+    let config = Config::load(config_path)?;
+    let current = config.last_applied_profile();
+    let next = next_profile_name(&config, current.as_deref())?;
+    apply_profile(config_path, Some(&next), no_osd, dry_run, time_secs)
 }
 
 fn preview_profile(
@@ -299,6 +361,12 @@ fn list_profiles(config_path: Option<&std::path::Path>) -> Result<()> {
         config.general.theme,
         config.themes_dir.display()
     );
+    println!(
+        "Last:   {}",
+        config
+            .last_applied_profile()
+            .unwrap_or_else(|| "(not set)".to_string())
+    );
     println!();
     for profile in &config.profiles {
         let marker = if Some(profile.name.as_str()) == default {
@@ -316,6 +384,7 @@ fn list_profiles(config_path: Option<&std::path::Path>) -> Result<()> {
     }
     println!();
     println!("Apply:       ryzen-power <profile>");
+    println!("Next:        ryzen-power --next");
     println!("Preview OSD: ryzen-power preview <profile>");
     Ok(())
 }
@@ -370,6 +439,7 @@ fn print_help() {
 
 Usage:
   ryzen-power [profile] [--no-osd] [--dry-run] [--time SECONDS] [--config FILE]
+  ryzen-power --next [--no-osd] [--dry-run] [--time SECONDS]
   ryzen-power preview <profile> [--time SECONDS]
   ryzen-power list
   ryzen-power status
@@ -378,6 +448,7 @@ Usage:
 
 Commands:
   <profile>          Apply a profile and show the OSD
+  --next             Apply the next profile in config order (cycles)
   preview <profile>  Show the OSD without changing any limits
   list               List profiles from the config
   status             Show current values from ryzenadj -i
@@ -385,6 +456,7 @@ Commands:
   install-polkit     Install the polkit rule (requires root)
 
 Options:
+  --next             Cycle to the next profile (eco -> balanced -> performance -> ...)
   --no-osd           Do not show the OSD
   --dry-run          Print the ryzenadj command only
   --time SECONDS     Override the OSD display time for this run
@@ -396,11 +468,15 @@ Examples:
   ryzen-power eco
   ryzen-power balanced
   ryzen-power performance
+  ryzen-power --next
+  ryzen-power --next --time 2
   ryzen-power preview balanced
   ryzen-power preview balanced --time 3
 
 The config is stored in ~/.config/ryzen-power/config.conf.
-If no profile is given, the default from the [general] section is used."#
+If no profile is given, the default from the [general] section is used.
+--next follows the profile order in the config and remembers the last applied
+profile in ~/.config/ryzen-power/config.state."#
     );
 }
 
@@ -453,5 +529,48 @@ mod tests {
     fn requires_time_value() {
         let error = parse_args(&args(&["--time"])).unwrap_err();
         assert!(format!("{error:#}").contains("--time requires"));
+    }
+
+    #[test]
+    fn parses_next_option() {
+        let (command, _) = parse_args(&args(&["--next", "--time", "2"])).unwrap();
+        match command {
+            Command::Next {
+                no_osd,
+                dry_run,
+                time_secs,
+            } => {
+                assert!(!no_osd);
+                assert!(!dry_run);
+                assert_eq!(time_secs, Some(2));
+            }
+            other => panic!("expected next command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_next_with_profile() {
+        let error = parse_args(&args(&["--next", "eco"])).unwrap_err();
+        assert!(format!("{error:#}").contains("--next"));
+    }
+
+    #[test]
+    fn next_profile_cycles_in_config_order() {
+        let config =
+            Config::parse(PathBuf::from("test.conf"), crate::config::DEFAULT_CONFIG).unwrap();
+
+        // Unknown state starts the cycle at the first profile.
+        assert_eq!(next_profile_name(&config, None).unwrap(), "eco");
+        assert_eq!(next_profile_name(&config, Some("ghost")).unwrap(), "eco");
+        // Then it advances in config-file order and wraps around.
+        assert_eq!(next_profile_name(&config, Some("eco")).unwrap(), "balanced");
+        assert_eq!(
+            next_profile_name(&config, Some("balanced")).unwrap(),
+            "performance"
+        );
+        assert_eq!(
+            next_profile_name(&config, Some("performance")).unwrap(),
+            "eco"
+        );
     }
 }
