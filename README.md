@@ -11,7 +11,7 @@ Tested on an **AMD Ryzen 7 PRO 8845HS** with Artix Linux + Hyprland.
 ## Features
 
 - Reads profiles from `~/.config/ryzen-power/config.conf`.
-- Changes `STAPM`, `PPT slow`, `PPT fast`, `Tctl`, and optional current/time limits through `ryzenadj`.
+- Changes `STAPM`, `PPT slow`, `PPT fast`, `Tctl`, APU/dGPU skin temperatures, and optional current/time limits through `ryzenadj`.
 - Shows a translucent OSD with the profile label, active limits, and a segmented scale.
 - Uses custom theme images from `~/.config/ryzen-power/themes/<theme>/<profile>.img`.
 - Falls back to the default theme, the profile icon, and then to built-in glyphs.
@@ -237,6 +237,8 @@ tctl = 95
 | `slow` | PPT slow / Average Power Limit | mW or W |
 | `fast` | PPT fast / Actual Power Limit | mW or W |
 | `tctl` | Tctl temperature limit | °C |
+| `apu_skin_temp` | STT LIMIT APU skin temperature | °C |
+| `dgpu_skin_temp` | STT LIMIT dGPU skin temperature | °C |
 | `tdc` | TDC LIMIT VDD | mA or A |
 | `edc` | EDC LIMIT VDD | mA or A |
 | `tdc_soc` | TDC LIMIT SoC | mA or A |
@@ -247,7 +249,7 @@ tctl = 95
 | `icon` | GTK symbolic icon name; built-in glyph if unavailable | string |
 | `color` | Profile accent color in the OSD | `#rgb` or `#rrggbb` |
 
-You can add your own profiles: the section name becomes the command name. Limits are validated at 1–200 W, 1–300 A, and 40–115 °C.
+You can add your own profiles: the section name becomes the command name. Values are passed to `ryzenadj` unchanged — there are no application-side limits on power, current, temperature, or time; `ryzenadj` and the firmware decide what is acceptable.
 
 The OSD scale is based on `fast`: profiles are sorted by that limit, and the selected profile fills the corresponding part of the scale.
 

@@ -8,6 +8,10 @@ pub const DEFAULT_CONFIG: &str = r#"# ryzen-power configuration
 #
 # Power values are in milliwatts (mW). Watts are also accepted: 45w.
 # Temperature is in degrees Celsius.
+# Values are passed to ryzenadj unchanged; ryzenadj and the firmware
+# decide what is acceptable.
+# Optional keys: apu_skin_temp, dgpu_skin_temp (°C), tdc, edc, tdc_soc,
+# edc_soc (mA or A), slow_time, stapm_time (s).
 #
 # Profiles are selected by name:
 #   ryzen-power eco
@@ -283,6 +287,10 @@ pub struct Limits {
     pub fast: Option<u32>,
     /// Tctl temperature limit, °C.
     pub tctl: Option<u32>,
+    /// STT LIMIT APU skin temperature, °C.
+    pub apu_skin_temp: Option<u32>,
+    /// STT LIMIT dGPU skin temperature, °C.
+    pub dgpu_skin_temp: Option<u32>,
     /// Slow PPT constant time, s.
     pub slow_time: Option<u32>,
     /// STAPM constant time, s.
@@ -303,6 +311,8 @@ impl Limits {
             && self.slow.is_none()
             && self.fast.is_none()
             && self.tctl.is_none()
+            && self.apu_skin_temp.is_none()
+            && self.dgpu_skin_temp.is_none()
             && self.slow_time.is_none()
             && self.stapm_time.is_none()
             && self.tdc.is_none()
@@ -324,6 +334,12 @@ impl Limits {
         }
         if let Some(v) = self.tctl {
             args.push(format!("--tctl-temp={v}"));
+        }
+        if let Some(v) = self.apu_skin_temp {
+            args.push(format!("--apu-skin-temp={v}"));
+        }
+        if let Some(v) = self.dgpu_skin_temp {
+            args.push(format!("--dgpu-skin-temp={v}"));
         }
         if let Some(v) = self.slow_time {
             args.push(format!("--slow-time={v}"));
@@ -362,6 +378,12 @@ impl Limits {
         }
         if let Some(v) = self.tctl {
             parts.push(format!("{v} °C"));
+        }
+        if let Some(v) = self.apu_skin_temp {
+            parts.push(format!("APU skin {v} °C"));
+        }
+        if let Some(v) = self.dgpu_skin_temp {
+            parts.push(format!("dGPU skin {v} °C"));
         }
 
         if parts.is_empty() {
@@ -835,18 +857,11 @@ fn parse_profile(
             "stapm" => limits.stapm = Some(parse_power(value, path, name, key)?),
             "slow" => limits.slow = Some(parse_power(value, path, name, key)?),
             "fast" => limits.fast = Some(parse_power(value, path, name, key)?),
-            "tctl" => {
-                let v = parse_u32(value, path, key)?;
-                if !(40..=115).contains(&v) {
-                    bail!(
-                        "{}: [{name}].tctl must be between 40 and 115 °C",
-                        path.display()
-                    );
-                }
-                limits.tctl = Some(v);
-            }
-            "slow_time" => limits.slow_time = Some(parse_time(value, path, name, key)?),
-            "stapm_time" => limits.stapm_time = Some(parse_time(value, path, name, key)?),
+            "tctl" => limits.tctl = Some(parse_u32(value, path, key)?),
+            "apu_skin_temp" => limits.apu_skin_temp = Some(parse_u32(value, path, key)?),
+            "dgpu_skin_temp" => limits.dgpu_skin_temp = Some(parse_u32(value, path, key)?),
+            "slow_time" => limits.slow_time = Some(parse_u32(value, path, key)?),
+            "stapm_time" => limits.stapm_time = Some(parse_u32(value, path, key)?),
             "tdc" => limits.tdc = Some(parse_current(value, path, name, key)?),
             "tdc_soc" => limits.tdc_soc = Some(parse_current(value, path, name, key)?),
             "edc" => limits.edc = Some(parse_current(value, path, name, key)?),
@@ -992,9 +1007,9 @@ fn parse_power(value: &str, path: &Path, section: &str, key: &str) -> Result<u32
     };
 
     let mw = mw.round();
-    if !(1_000.0..=200_000.0).contains(&mw) {
+    if !(0.0..=f64::from(u32::MAX)).contains(&mw) {
         bail!(
-            "{}: [{section}].{key}: power must be between 1 and 200 W, got '{value}'",
+            "{}: [{section}].{key}: invalid power value '{value}'",
             path.display()
         );
     }
@@ -1014,24 +1029,13 @@ fn parse_current(value: &str, path: &Path, section: &str, key: &str) -> Result<u
     };
 
     let ma = ma.round();
-    if !(1_000.0..=300_000.0).contains(&ma) {
+    if !(0.0..=f64::from(u32::MAX)).contains(&ma) {
         bail!(
-            "{}: [{section}].{key}: current must be between 1 and 300 A, got '{value}'",
+            "{}: [{section}].{key}: invalid current value '{value}'",
             path.display()
         );
     }
     Ok(ma as u32)
-}
-
-fn parse_time(value: &str, path: &Path, section: &str, key: &str) -> Result<u32> {
-    let v = parse_u32(value, path, key)?;
-    if !(1..=3600).contains(&v) {
-        bail!(
-            "{}: [{section}].{key}: time must be between 1 and 3600 seconds",
-            path.display()
-        );
-    }
-    Ok(v)
 }
 
 fn parse_number(value: &str, path: &Path, section: &str, key: &str, original: &str) -> Result<f64> {
@@ -1124,6 +1128,48 @@ stapm = 50w
     fn rejects_profile_without_limits() {
         let text = "[general]\nosd = false\n[empty]\nlabel = Empty\n";
         assert!(Config::parse(PathBuf::from("test.conf"), text).is_err());
+    }
+
+    #[test]
+    fn passes_profile_values_through_without_range_limits() {
+        let text = "[general]\nosd = false\n[eco]\nstapm = 500w\nslow = 550w\nfast = 600w\ntctl = 200\ntdc = 500a\nslow_time = 999999\nstapm_time = 0\n";
+        let config = parse(text);
+        let limits = &config.profiles[0].limits;
+        assert_eq!(limits.stapm, Some(500_000));
+        assert_eq!(limits.slow, Some(550_000));
+        assert_eq!(limits.fast, Some(600_000));
+        assert_eq!(limits.tctl, Some(200));
+        assert_eq!(limits.tdc, Some(500_000));
+        assert_eq!(limits.slow_time, Some(999_999));
+        assert_eq!(limits.stapm_time, Some(0));
+    }
+
+    #[test]
+    fn parses_skin_temperature_limits() {
+        let text =
+            "[general]\nosd = false\n[eco]\nstapm = 25w\napu_skin_temp = 45\ndgpu_skin_temp = 40\n";
+        let config = parse(text);
+        let limits = &config.profiles[0].limits;
+        assert_eq!(limits.apu_skin_temp, Some(45));
+        assert_eq!(limits.dgpu_skin_temp, Some(40));
+        let args = limits.ryzenadj_args();
+        assert!(args.contains(&"--apu-skin-temp=45".to_string()));
+        assert!(args.contains(&"--dgpu-skin-temp=40".to_string()));
+        assert_eq!(
+            limits.summary(),
+            "STAPM 25 W · APU skin 45 °C · dGPU skin 40 °C"
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_power_values() {
+        for value in ["abc", "-5w", "nan", "inf"] {
+            let text = format!("[general]\nosd = false\n[eco]\nstapm = {value}\n");
+            assert!(
+                Config::parse(PathBuf::from("test.conf"), &text).is_err(),
+                "power {value:?} should be rejected"
+            );
+        }
     }
 
     #[test]

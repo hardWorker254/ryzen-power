@@ -2,6 +2,10 @@
 #
 # Power values are in milliwatts (mW). Watts are also accepted: 45w.
 # Temperature is in degrees Celsius.
+# Values are passed to ryzenadj unchanged; ryzenadj and the firmware
+# decide what is acceptable.
+# Optional keys: apu_skin_temp, dgpu_skin_temp (°C), tdc, edc, tdc_soc,
+# edc_soc (mA or A), slow_time, stapm_time (s).
 #
 # Profiles are selected by name:
 #   ryzen-power eco
