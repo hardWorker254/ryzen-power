@@ -107,11 +107,12 @@ Options:
 ryzen-power --dry-run balanced   # print the ryzenadj command without running it
 ryzen-power --no-osd eco         # apply without showing the OSD
 ryzen-power --time 3 balanced    # show the OSD for 3 seconds
+ryzen-power --time 1.5 balanced  # fractional seconds work too
 ryzen-power --config FILE eco    # use another config file
 ryzen-power preview balanced --time 3
 ```
 
-`--time SECONDS` overrides `osd_timeout_ms` for that run and accepts a positive whole number of seconds.
+`--time SECONDS` overrides `osd_timeout_ms` for that run and accepts any positive number of seconds, including fractions such as `1.5`.
 
 `--next` applies the profile after the last one applied by ryzen-power, following the profile order in the config file and wrapping around (`eco → balanced → performance → eco …`). The last applied profile is remembered in `config.state` next to the config file; when nothing has been recorded yet, the cycle starts with the first profile. `preview` does not change the recorded profile, and a failed apply keeps the previous one. `--next` combines with `--time`, `--no-osd`, and `--dry-run`, but not with a profile name.
 

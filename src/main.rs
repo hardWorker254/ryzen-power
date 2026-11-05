@@ -27,16 +27,16 @@ enum Command {
         profile: Option<String>,
         no_osd: bool,
         dry_run: bool,
-        time_secs: Option<u64>,
+        timeout: Option<Duration>,
     },
     Next {
         no_osd: bool,
         dry_run: bool,
-        time_secs: Option<u64>,
+        timeout: Option<Duration>,
     },
     Preview {
         profile: String,
-        time_secs: Option<u64>,
+        timeout: Option<Duration>,
     },
     List,
     Status,
@@ -54,21 +54,21 @@ fn run() -> Result<()> {
             profile,
             no_osd,
             dry_run,
-            time_secs,
+            timeout,
         } => apply_profile(
             config_path.as_deref(),
             profile.as_deref(),
             no_osd,
             dry_run,
-            time_secs,
+            timeout,
         ),
         Command::Next {
             no_osd,
             dry_run,
-            time_secs,
-        } => apply_next_profile(config_path.as_deref(), no_osd, dry_run, time_secs),
-        Command::Preview { profile, time_secs } => {
-            preview_profile(config_path.as_deref(), &profile, time_secs)
+            timeout,
+        } => apply_next_profile(config_path.as_deref(), no_osd, dry_run, timeout),
+        Command::Preview { profile, timeout } => {
+            preview_profile(config_path.as_deref(), &profile, timeout)
         }
         Command::List => list_profiles(config_path.as_deref()),
         Command::Status => show_status(),
@@ -86,7 +86,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
     let mut no_osd = false;
     let mut dry_run = false;
     let mut next = false;
-    let mut time_secs = None;
+    let mut timeout = None;
     let mut positional: Vec<String> = Vec::new();
 
     let mut index = 0;
@@ -106,11 +106,11 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 let value = args
                     .get(index)
                     .context("--time requires a number of seconds")?;
-                time_secs = Some(parse_time_value(value)?);
+                timeout = Some(parse_time_value(value)?);
             }
             _ if arg.starts_with("--time=") => {
                 let value = &arg["--time=".len()..];
-                time_secs = Some(parse_time_value(value)?);
+                timeout = Some(parse_time_value(value)?);
             }
             "--config" => {
                 index += 1;
@@ -139,14 +139,14 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
             Command::Next {
                 no_osd,
                 dry_run,
-                time_secs,
+                timeout,
             }
         } else {
             Command::Apply {
                 profile: None,
                 no_osd,
                 dry_run,
-                time_secs,
+                timeout,
             }
         };
         return Ok((command, config_path));
@@ -175,7 +175,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 .get(1)
                 .context("Usage: ryzen-power preview <profile>")?
                 .clone();
-            Command::Preview { profile, time_secs }
+            Command::Preview { profile, timeout }
         }
         "apply" => {
             ensure_no_extra(&positional, 2, "apply")?;
@@ -183,7 +183,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 profile: positional.get(1).cloned(),
                 no_osd,
                 dry_run,
-                time_secs,
+                timeout,
             }
         }
         _ => {
@@ -192,7 +192,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 profile: Some(positional[0].clone()),
                 no_osd,
                 dry_run,
-                time_secs,
+                timeout,
             }
         }
     };
@@ -211,14 +211,25 @@ fn ensure_no_extra(positional: &[String], allowed: usize, command: &str) -> Resu
     Ok(())
 }
 
-fn parse_time_value(value: &str) -> Result<u64> {
+/// Parse a `--time` value: a positive number of seconds, which may be
+/// fractional (`1.5` = 1500 ms).
+fn parse_time_value(value: &str) -> Result<Duration> {
     let secs = value
-        .parse::<u64>()
+        .parse::<f64>()
         .with_context(|| format!("Invalid --time value: {value}"))?;
-    if secs == 0 {
+    if !secs.is_finite() || secs <= 0.0 {
         bail!("--time must be greater than 0");
     }
-    Ok(secs)
+    // Guard against values too large for Duration (panics above ~u64::MAX secs)
+    // and against sub-millisecond values that would round to a zero hold.
+    let millis = (secs * 1000.0).round();
+    if millis < 1.0 {
+        bail!("--time must be at least 0.001 seconds");
+    }
+    if millis > u64::MAX as f64 {
+        bail!("--time value is too large: {value}");
+    }
+    Ok(Duration::from_millis(millis as u64))
 }
 
 fn apply_profile(
@@ -226,10 +237,9 @@ fn apply_profile(
     profile_name: Option<&str>,
     no_osd: bool,
     dry_run: bool,
-    time_secs: Option<u64>,
+    timeout: Option<Duration>,
 ) -> Result<()> {
     let config = Config::load(config_path)?;
-    let osd_timeout = time_secs.map(Duration::from_secs);
     let profile = match profile_name {
         Some(name) => config.resolve_profile(name).with_context(|| {
             format!(
@@ -253,11 +263,7 @@ fn apply_profile(
         Ok(outcome) => outcome,
         Err(err) => {
             if config.general.osd && !no_osd && osd::display_available() {
-                let _ = osd::show(
-                    &config,
-                    &osd::OsdData::error(&format!("{err:#}")),
-                    osd_timeout,
-                );
+                let _ = osd::show(&config, &osd::OsdData::error(&format!("{err:#}")), timeout);
             }
             return Err(err);
         }
@@ -285,7 +291,7 @@ fn apply_profile(
         && let Err(err) = osd::show(
             &config,
             &osd::OsdData::for_profile(&config, profile),
-            osd_timeout,
+            timeout,
         )
     {
         eprintln!("Could not show the OSD: {err:#}");
@@ -322,18 +328,18 @@ fn apply_next_profile(
     config_path: Option<&std::path::Path>,
     no_osd: bool,
     dry_run: bool,
-    time_secs: Option<u64>,
+    timeout: Option<Duration>,
 ) -> Result<()> {
     let config = Config::load(config_path)?;
     let current = config.last_applied_profile();
     let next = next_profile_name(&config, current.as_deref())?;
-    apply_profile(config_path, Some(&next), no_osd, dry_run, time_secs)
+    apply_profile(config_path, Some(&next), no_osd, dry_run, timeout)
 }
 
 fn preview_profile(
     config_path: Option<&std::path::Path>,
     name: &str,
-    time_secs: Option<u64>,
+    timeout: Option<Duration>,
 ) -> Result<()> {
     let config = Config::load(config_path)?;
     let profile = config.resolve_profile(name).with_context(|| {
@@ -342,12 +348,11 @@ fn preview_profile(
             profile_names(&config)
         )
     })?;
-    let osd_timeout = time_secs.map(Duration::from_secs);
 
     osd::show(
         &config,
         &osd::OsdData::for_profile(&config, profile),
-        osd_timeout,
+        timeout,
     )
 }
 
@@ -459,7 +464,7 @@ Options:
   --next             Cycle to the next profile (eco -> balanced -> performance -> ...)
   --no-osd           Do not show the OSD
   --dry-run          Print the ryzenadj command only
-  --time SECONDS     Override the OSD display time for this run
+  --time SECONDS     Override the OSD display time for this run (may be fractional)
   --config FILE      Use another configuration file
   -h, --help         Show this help
   -V, --version      Show the version
@@ -472,6 +477,7 @@ Examples:
   ryzen-power --next --time 2
   ryzen-power preview balanced
   ryzen-power preview balanced --time 3
+  ryzen-power preview balanced --time 1.5
 
 The config is stored in ~/.config/ryzen-power/config.conf.
 If no profile is given, the default from the [general] section is used.
@@ -493,12 +499,31 @@ mod tests {
         let (command, _) = parse_args(&args(&["--time", "3", "balanced"])).unwrap();
         match command {
             Command::Apply {
-                profile, time_secs, ..
+                profile, timeout, ..
             } => {
                 assert_eq!(profile.as_deref(), Some("balanced"));
-                assert_eq!(time_secs, Some(3));
+                assert_eq!(timeout, Some(Duration::from_secs(3)));
             }
             other => panic!("expected apply command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_fractional_time() {
+        let (command, _) = parse_args(&args(&["--time", "1.5", "balanced"])).unwrap();
+        match command {
+            Command::Apply { timeout, .. } => {
+                assert_eq!(timeout, Some(Duration::from_millis(1500)));
+            }
+            other => panic!("expected apply command, got {other:?}"),
+        }
+
+        let (command, _) = parse_args(&args(&["preview", "eco", "--time=0.25"])).unwrap();
+        match command {
+            Command::Preview { timeout, .. } => {
+                assert_eq!(timeout, Some(Duration::from_millis(250)));
+            }
+            other => panic!("expected preview command, got {other:?}"),
         }
     }
 
@@ -506,9 +531,9 @@ mod tests {
     fn parses_time_for_preview() {
         let (command, _) = parse_args(&args(&["preview", "eco", "--time=2"])).unwrap();
         match command {
-            Command::Preview { profile, time_secs } => {
+            Command::Preview { profile, timeout } => {
                 assert_eq!(profile, "eco");
-                assert_eq!(time_secs, Some(2));
+                assert_eq!(timeout, Some(Duration::from_secs(2)));
             }
             other => panic!("expected preview command, got {other:?}"),
         }
@@ -516,7 +541,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_time_values() {
-        for value in ["0", "abc", "-1"] {
+        for value in ["0", "abc", "-1", "-0.5", "nan", "inf", "0.0000001"] {
             let error = parse_args(&args(&["--time", value, "eco"])).unwrap_err();
             assert!(
                 format!("{error:#}").contains("time"),
@@ -538,11 +563,11 @@ mod tests {
             Command::Next {
                 no_osd,
                 dry_run,
-                time_secs,
+                timeout,
             } => {
                 assert!(!no_osd);
                 assert!(!dry_run);
-                assert_eq!(time_secs, Some(2));
+                assert_eq!(timeout, Some(Duration::from_secs(2)));
             }
             other => panic!("expected next command, got {other:?}"),
         }
