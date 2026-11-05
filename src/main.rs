@@ -5,6 +5,7 @@ mod ryzen;
 
 use std::env;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 
@@ -26,9 +27,11 @@ enum Command {
         profile: Option<String>,
         no_osd: bool,
         dry_run: bool,
+        time_secs: Option<u64>,
     },
     Preview {
         profile: String,
+        time_secs: Option<u64>,
     },
     List,
     Status,
@@ -46,8 +49,17 @@ fn run() -> Result<()> {
             profile,
             no_osd,
             dry_run,
-        } => apply_profile(config_path.as_deref(), profile.as_deref(), no_osd, dry_run),
-        Command::Preview { profile } => preview_profile(config_path.as_deref(), &profile),
+            time_secs,
+        } => apply_profile(
+            config_path.as_deref(),
+            profile.as_deref(),
+            no_osd,
+            dry_run,
+            time_secs,
+        ),
+        Command::Preview { profile, time_secs } => {
+            preview_profile(config_path.as_deref(), &profile, time_secs)
+        }
         Command::List => list_profiles(config_path.as_deref()),
         Command::Status => show_status(),
         Command::Init => init_config(config_path),
@@ -63,6 +75,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
     let mut config_path = None;
     let mut no_osd = false;
     let mut dry_run = false;
+    let mut time_secs = None;
     let mut positional: Vec<String> = Vec::new();
 
     let mut index = 0;
@@ -76,6 +89,17 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
             }
             "--no-osd" => no_osd = true,
             "--dry-run" => dry_run = true,
+            "--time" => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .context("--time requires a number of seconds")?;
+                time_secs = Some(parse_time_value(value)?);
+            }
+            _ if arg.starts_with("--time=") => {
+                let value = &arg["--time=".len()..];
+                time_secs = Some(parse_time_value(value)?);
+            }
             "--config" => {
                 index += 1;
                 let value = args.get(index).context("--config requires a file path")?;
@@ -100,6 +124,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 profile: None,
                 no_osd,
                 dry_run,
+                time_secs,
             },
             config_path,
         ));
@@ -128,7 +153,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 .get(1)
                 .context("Usage: ryzen-power preview <profile>")?
                 .clone();
-            Command::Preview { profile }
+            Command::Preview { profile, time_secs }
         }
         "apply" => {
             ensure_no_extra(&positional, 2, "apply")?;
@@ -136,6 +161,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 profile: positional.get(1).cloned(),
                 no_osd,
                 dry_run,
+                time_secs,
             }
         }
         _ => {
@@ -144,6 +170,7 @@ fn parse_args(args: &[String]) -> Result<(Command, Option<PathBuf>)> {
                 profile: Some(positional[0].clone()),
                 no_osd,
                 dry_run,
+                time_secs,
             }
         }
     };
@@ -162,13 +189,25 @@ fn ensure_no_extra(positional: &[String], allowed: usize, command: &str) -> Resu
     Ok(())
 }
 
+fn parse_time_value(value: &str) -> Result<u64> {
+    let secs = value
+        .parse::<u64>()
+        .with_context(|| format!("Invalid --time value: {value}"))?;
+    if secs == 0 {
+        bail!("--time must be greater than 0");
+    }
+    Ok(secs)
+}
+
 fn apply_profile(
     config_path: Option<&std::path::Path>,
     profile_name: Option<&str>,
     no_osd: bool,
     dry_run: bool,
+    time_secs: Option<u64>,
 ) -> Result<()> {
     let config = Config::load(config_path)?;
+    let osd_timeout = time_secs.map(Duration::from_secs);
     let profile = match profile_name {
         Some(name) => config.resolve_profile(name).with_context(|| {
             format!(
@@ -192,7 +231,11 @@ fn apply_profile(
         Ok(outcome) => outcome,
         Err(err) => {
             if config.general.osd && !no_osd && osd::display_available() {
-                let _ = osd::show(&config, &osd::OsdData::error(&format!("{err:#}")));
+                let _ = osd::show(
+                    &config,
+                    &osd::OsdData::error(&format!("{err:#}")),
+                    osd_timeout,
+                );
             }
             return Err(err);
         }
@@ -213,7 +256,11 @@ fn apply_profile(
     if config.general.osd
         && !no_osd
         && osd::display_available()
-        && let Err(err) = osd::show(&config, &osd::OsdData::for_profile(&config, profile))
+        && let Err(err) = osd::show(
+            &config,
+            &osd::OsdData::for_profile(&config, profile),
+            osd_timeout,
+        )
     {
         eprintln!("Could not show the OSD: {err:#}");
     }
@@ -221,7 +268,11 @@ fn apply_profile(
     Ok(())
 }
 
-fn preview_profile(config_path: Option<&std::path::Path>, name: &str) -> Result<()> {
+fn preview_profile(
+    config_path: Option<&std::path::Path>,
+    name: &str,
+    time_secs: Option<u64>,
+) -> Result<()> {
     let config = Config::load(config_path)?;
     let profile = config.resolve_profile(name).with_context(|| {
         format!(
@@ -229,8 +280,13 @@ fn preview_profile(config_path: Option<&std::path::Path>, name: &str) -> Result<
             profile_names(&config)
         )
     })?;
+    let osd_timeout = time_secs.map(Duration::from_secs);
 
-    osd::show(&config, &osd::OsdData::for_profile(&config, profile))
+    osd::show(
+        &config,
+        &osd::OsdData::for_profile(&config, profile),
+        osd_timeout,
+    )
 }
 
 fn list_profiles(config_path: Option<&std::path::Path>) -> Result<()> {
@@ -313,8 +369,8 @@ fn print_help() {
         r#"ryzen-power {VERSION} — AMD Ryzen power-limit profile switcher
 
 Usage:
-  ryzen-power [profile] [--no-osd] [--dry-run] [--config FILE]
-  ryzen-power preview <profile>
+  ryzen-power [profile] [--no-osd] [--dry-run] [--time SECONDS] [--config FILE]
+  ryzen-power preview <profile> [--time SECONDS]
   ryzen-power list
   ryzen-power status
   ryzen-power init
@@ -331,6 +387,7 @@ Commands:
 Options:
   --no-osd           Do not show the OSD
   --dry-run          Print the ryzenadj command only
+  --time SECONDS     Override the OSD display time for this run
   --config FILE      Use another configuration file
   -h, --help         Show this help
   -V, --version      Show the version
@@ -340,8 +397,61 @@ Examples:
   ryzen-power balanced
   ryzen-power performance
   ryzen-power preview balanced
+  ryzen-power preview balanced --time 3
 
 The config is stored in ~/.config/ryzen-power/config.conf.
 If no profile is given, the default from the [general] section is used."#
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_string()).collect()
+    }
+
+    #[test]
+    fn parses_time_for_apply() {
+        let (command, _) = parse_args(&args(&["--time", "3", "balanced"])).unwrap();
+        match command {
+            Command::Apply {
+                profile, time_secs, ..
+            } => {
+                assert_eq!(profile.as_deref(), Some("balanced"));
+                assert_eq!(time_secs, Some(3));
+            }
+            other => panic!("expected apply command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_time_for_preview() {
+        let (command, _) = parse_args(&args(&["preview", "eco", "--time=2"])).unwrap();
+        match command {
+            Command::Preview { profile, time_secs } => {
+                assert_eq!(profile, "eco");
+                assert_eq!(time_secs, Some(2));
+            }
+            other => panic!("expected preview command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_time_values() {
+        for value in ["0", "abc", "-1"] {
+            let error = parse_args(&args(&["--time", value, "eco"])).unwrap_err();
+            assert!(
+                format!("{error:#}").contains("time"),
+                "unexpected error for {value:?}: {error:#}"
+            );
+        }
+    }
+
+    #[test]
+    fn requires_time_value() {
+        let error = parse_args(&args(&["--time"])).unwrap_err();
+        assert!(format!("{error:#}").contains("--time requires"));
+    }
 }

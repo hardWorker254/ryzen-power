@@ -118,7 +118,8 @@ pub fn display_available() -> bool {
     std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var_os("DISPLAY").is_some()
 }
 
-pub fn show(config: &Config, data: &OsdData) -> Result<()> {
+/// Show the OSD for `timeout`, or for `general.osd_timeout_ms` when `timeout` is `None`.
+pub fn show(config: &Config, data: &OsdData, timeout: Option<Duration>) -> Result<()> {
     if !display_available() {
         bail!("No graphical session (WAYLAND_DISPLAY/DISPLAY is not set)");
     }
@@ -290,18 +291,19 @@ pub fn show(config: &Config, data: &OsdData) -> Result<()> {
     let started = Instant::now();
 
     let fade_in = Duration::from_millis(140);
-    let hold = Duration::from_millis(general.osd_timeout_ms);
+    let hold = timeout.unwrap_or_else(|| Duration::from_millis(general.osd_timeout_ms));
     let fade_out = Duration::from_millis(220);
-    let total = fade_in + hold + fade_out;
+    let hold_end = fade_in.saturating_add(hold);
+    let total = hold_end.saturating_add(fade_out);
 
     gtk::glib::timeout_add_local(Duration::from_millis(16), move || {
         let elapsed = started.elapsed();
         let opacity = if elapsed < fade_in {
             elapsed.as_secs_f64() / fade_in.as_secs_f64()
-        } else if elapsed < fade_in + hold {
+        } else if elapsed < hold_end {
             1.0
         } else if elapsed < total {
-            1.0 - (elapsed - fade_in - hold).as_secs_f64() / fade_out.as_secs_f64()
+            1.0 - (elapsed - hold_end).as_secs_f64() / fade_out.as_secs_f64()
         } else {
             0.0
         };

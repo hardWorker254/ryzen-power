@@ -34,6 +34,7 @@ osd_margin = 110
 # Minimum OSD width in pixels.
 osd_width = 380
 # How long the OSD stays fully visible, in milliseconds.
+# The --time CLI option overrides this for one run.
 osd_timeout_ms = 1400
 
 # Card appearance.

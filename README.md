@@ -104,8 +104,12 @@ Options:
 ```bash
 ryzen-power --dry-run balanced   # print the ryzenadj command without running it
 ryzen-power --no-osd eco         # apply without showing the OSD
+ryzen-power --time 3 balanced    # show the OSD for 3 seconds
 ryzen-power --config FILE eco    # use another config file
+ryzen-power preview balanced --time 3
 ```
+
+`--time SECONDS` overrides `osd_timeout_ms` for that run and accepts a positive whole number of seconds.
 
 Inspect the command that would be executed:
 
@@ -251,7 +255,7 @@ The OSD scale is based on `fast`: profiles are sorted by that limit, and the sel
 | `osd_position` | `bottom` | `bottom`, `center`, or `top` |
 | `osd_margin` | `110` | Distance from the screen edge, px (ignored for `center`) |
 | `osd_width` | `380` | Minimum OSD width, px |
-| `osd_timeout_ms` | `1400` | How long the OSD remains fully visible |
+| `osd_timeout_ms` | `1400` | How long the OSD remains fully visible (`--time` overrides it per run) |
 | `background_opacity` | `0.88` | Card background opacity, `0.0`–`1.0` |
 | `border_radius` | `18` | Card corner radius, px |
 | `icon_position` | `left` | `left`, `right`, `top`, or `none` |
