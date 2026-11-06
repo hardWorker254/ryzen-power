@@ -11,7 +11,7 @@ Tested on an **AMD Ryzen 7 PRO 8845HS** with Artix Linux + Hyprland.
 ## Features
 
 - Reads profiles from `~/.config/ryzen-power/config.conf`.
-- Changes `STAPM`, `PPT slow`, `PPT fast`, `Tctl`, APU/dGPU skin temperatures, and optional current/time limits through `ryzenadj`.
+- Changes `STAPM`, `PPT slow`, `PPT fast`, APU slow and skin temperature power limits, `Tctl`, APU/dGPU skin temperatures, and optional current/time limits through `ryzenadj`.
 - Shows a translucent OSD with the profile label, active limits, and a segmented scale.
 - Uses custom theme images from `~/.config/ryzen-power/themes/<theme>/<profile>.img`.
 - Falls back to the default theme, the profile icon, and then to built-in glyphs.
@@ -236,6 +236,8 @@ tctl = 95
 | `stapm` | Sustained Power Limit | mW (`45000`) or W (`45w`) |
 | `slow` | PPT slow / Average Power Limit | mW or W |
 | `fast` | PPT fast / Actual Power Limit | mW or W |
+| `apu_slow_limit` | APU PPT Slow Power limit (A+A dGPU platforms) | mW or W |
+| `skin_temp_limit` | Skin Temperature Power Limit (a power limit, despite the name) | mW or W |
 | `tctl` | Tctl temperature limit | °C |
 | `apu_skin_temp` | STT LIMIT APU skin temperature | °C |
 | `dgpu_skin_temp` | STT LIMIT dGPU skin temperature | °C |

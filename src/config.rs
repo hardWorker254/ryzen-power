@@ -10,8 +10,9 @@ pub const DEFAULT_CONFIG: &str = r#"# ryzen-power configuration
 # Temperature is in degrees Celsius.
 # Values are passed to ryzenadj unchanged; ryzenadj and the firmware
 # decide what is acceptable.
-# Optional keys: apu_skin_temp, dgpu_skin_temp (°C), tdc, edc, tdc_soc,
-# edc_soc (mA or A), slow_time, stapm_time (s).
+# Optional keys: apu_slow_limit, skin_temp_limit (mW or W), tdc, edc,
+# tdc_soc, edc_soc (mA or A), slow_time, stapm_time (s),
+# apu_skin_temp, dgpu_skin_temp (°C).
 #
 # Profiles are selected by name:
 #   ryzen-power eco
@@ -285,6 +286,10 @@ pub struct Limits {
     pub slow: Option<u32>,
     /// Actual/boost PPT limit, mW.
     pub fast: Option<u32>,
+    /// APU PPT Slow Power limit for A+A dGPU platforms, mW.
+    pub apu_slow_limit: Option<u32>,
+    /// Skin Temperature Power Limit, mW.
+    pub skin_temp_limit: Option<u32>,
     /// Tctl temperature limit, °C.
     pub tctl: Option<u32>,
     /// STT LIMIT APU skin temperature, °C.
@@ -310,6 +315,8 @@ impl Limits {
         self.stapm.is_none()
             && self.slow.is_none()
             && self.fast.is_none()
+            && self.apu_slow_limit.is_none()
+            && self.skin_temp_limit.is_none()
             && self.tctl.is_none()
             && self.apu_skin_temp.is_none()
             && self.dgpu_skin_temp.is_none()
@@ -331,6 +338,12 @@ impl Limits {
         }
         if let Some(v) = self.fast {
             args.push(format!("--fast-limit={v}"));
+        }
+        if let Some(v) = self.apu_slow_limit {
+            args.push(format!("--apu-slow-limit={v}"));
+        }
+        if let Some(v) = self.skin_temp_limit {
+            args.push(format!("--skin-temp-limit={v}"));
         }
         if let Some(v) = self.tctl {
             args.push(format!("--tctl-temp={v}"));
@@ -375,6 +388,12 @@ impl Limits {
             (Some(slow), None) => parts.push(format!("PPT slow {}", watts(slow))),
             (None, Some(fast)) => parts.push(format!("PPT fast {}", watts(fast))),
             (None, None) => {}
+        }
+        if let Some(v) = self.apu_slow_limit {
+            parts.push(format!("APU slow {}", watts(v)));
+        }
+        if let Some(v) = self.skin_temp_limit {
+            parts.push(format!("Skin power {}", watts(v)));
         }
         if let Some(v) = self.tctl {
             parts.push(format!("{v} °C"));
@@ -857,6 +876,10 @@ fn parse_profile(
             "stapm" => limits.stapm = Some(parse_power(value, path, name, key)?),
             "slow" => limits.slow = Some(parse_power(value, path, name, key)?),
             "fast" => limits.fast = Some(parse_power(value, path, name, key)?),
+            "apu_slow_limit" => limits.apu_slow_limit = Some(parse_power(value, path, name, key)?),
+            "skin_temp_limit" => {
+                limits.skin_temp_limit = Some(parse_power(value, path, name, key)?)
+            }
             "tctl" => limits.tctl = Some(parse_u32(value, path, key)?),
             "apu_skin_temp" => limits.apu_skin_temp = Some(parse_u32(value, path, key)?),
             "dgpu_skin_temp" => limits.dgpu_skin_temp = Some(parse_u32(value, path, key)?),
@@ -1158,6 +1181,22 @@ stapm = 50w
         assert_eq!(
             limits.summary(),
             "STAPM 25 W · APU skin 45 °C · dGPU skin 40 °C"
+        );
+    }
+
+    #[test]
+    fn parses_apu_and_skin_power_limits() {
+        let text = "[general]\nosd = false\n[eco]\nstapm = 25w\napu_slow_limit = 45w\nskin_temp_limit = 15000\n";
+        let config = parse(text);
+        let limits = &config.profiles[0].limits;
+        assert_eq!(limits.apu_slow_limit, Some(45_000));
+        assert_eq!(limits.skin_temp_limit, Some(15_000));
+        let args = limits.ryzenadj_args();
+        assert!(args.contains(&"--apu-slow-limit=45000".to_string()));
+        assert!(args.contains(&"--skin-temp-limit=15000".to_string()));
+        assert_eq!(
+            limits.summary(),
+            "STAPM 25 W · APU slow 45 W · Skin power 15 W"
         );
     }
 
