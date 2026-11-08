@@ -241,10 +241,10 @@ tctl = 95
 | `tctl` | Tctl temperature limit | °C |
 | `apu_skin_temp` | STT LIMIT APU skin temperature | °C |
 | `dgpu_skin_temp` | STT LIMIT dGPU skin temperature | °C |
-| `tdc` | TDC LIMIT VDD | mA or A |
-| `edc` | EDC LIMIT VDD | mA or A |
-| `tdc_soc` | TDC LIMIT SoC | mA or A |
-| `edc_soc` | EDC LIMIT SoC | mA or A |
+| `tdc` | TDC LIMIT VDD (alias: `vrm-current`) | mA or A |
+| `edc` | EDC LIMIT VDD (alias: `vrmmax-current`) | mA or A |
+| `tdc_soc` | TDC LIMIT SoC (alias: `vrmsoc-current`) | mA or A |
+| `edc_soc` | EDC LIMIT SoC (alias: `vrmsocmax-current`) | mA or A |
 | `slow_time` | Slow PPT constant time | seconds |
 | `stapm_time` | STAPM constant time | seconds |
 | `label` | Name shown in the OSD | string |

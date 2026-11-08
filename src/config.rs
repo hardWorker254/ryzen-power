@@ -11,8 +11,9 @@ pub const DEFAULT_CONFIG: &str = r#"# ryzen-power configuration
 # Values are passed to ryzenadj unchanged; ryzenadj and the firmware
 # decide what is acceptable.
 # Optional keys: apu_slow_limit, skin_temp_limit (mW or W), tdc, edc,
-# tdc_soc, edc_soc (mA or A), slow_time, stapm_time (s),
-# apu_skin_temp, dgpu_skin_temp (°C).
+# tdc_soc, edc_soc (mA or A) — also accepted under the ryzenadj names
+# vrm-current, vrmmax-current, vrmsoc-current, vrmsocmax-current,
+# slow_time, stapm_time (s), apu_skin_temp, dgpu_skin_temp (°C).
 #
 # Profiles are selected by name:
 #   ryzen-power eco
@@ -885,10 +886,14 @@ fn parse_profile(
             "dgpu_skin_temp" => limits.dgpu_skin_temp = Some(parse_u32(value, path, key)?),
             "slow_time" => limits.slow_time = Some(parse_u32(value, path, key)?),
             "stapm_time" => limits.stapm_time = Some(parse_u32(value, path, key)?),
-            "tdc" => limits.tdc = Some(parse_current(value, path, name, key)?),
-            "tdc_soc" => limits.tdc_soc = Some(parse_current(value, path, name, key)?),
-            "edc" => limits.edc = Some(parse_current(value, path, name, key)?),
-            "edc_soc" => limits.edc_soc = Some(parse_current(value, path, name, key)?),
+            "tdc" | "vrm-current" => limits.tdc = Some(parse_current(value, path, name, key)?),
+            "tdc_soc" | "vrmsoc-current" => {
+                limits.tdc_soc = Some(parse_current(value, path, name, key)?)
+            }
+            "edc" | "vrmmax-current" => limits.edc = Some(parse_current(value, path, name, key)?),
+            "edc_soc" | "vrmsocmax-current" => {
+                limits.edc_soc = Some(parse_current(value, path, name, key)?)
+            }
             other => warnings.push(format!("[{name}]: unknown key '{other}' was ignored")),
         }
     }
@@ -1198,6 +1203,22 @@ stapm = 50w
             limits.summary(),
             "STAPM 25 W · APU slow 45 W · Skin power 15 W"
         );
+    }
+
+    #[test]
+    fn accepts_ryzenadj_current_option_names() {
+        let text = "[general]\nosd = false\n[eco]\nstapm = 25w\nvrm-current = 50a\nvrmsoc-current = 30a\nvrmmax-current = 70a\nvrmsocmax-current = 40a\n";
+        let config = parse(text);
+        let limits = &config.profiles[0].limits;
+        assert_eq!(limits.tdc, Some(50_000));
+        assert_eq!(limits.tdc_soc, Some(30_000));
+        assert_eq!(limits.edc, Some(70_000));
+        assert_eq!(limits.edc_soc, Some(40_000));
+        let args = limits.ryzenadj_args();
+        assert!(args.contains(&"--vrm-current=50000".to_string()));
+        assert!(args.contains(&"--vrmsoc-current=30000".to_string()));
+        assert!(args.contains(&"--vrmmax-current=70000".to_string()));
+        assert!(args.contains(&"--vrmsocmax-current=40000".to_string()));
     }
 
     #[test]

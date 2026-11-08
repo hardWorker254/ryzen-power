@@ -5,8 +5,9 @@
 # Values are passed to ryzenadj unchanged; ryzenadj and the firmware
 # decide what is acceptable.
 # Optional keys: apu_slow_limit, skin_temp_limit (mW or W), tdc, edc,
-# tdc_soc, edc_soc (mA or A), slow_time, stapm_time (s),
-# apu_skin_temp, dgpu_skin_temp (°C).
+# tdc_soc, edc_soc (mA or A) — also accepted under the ryzenadj names
+# vrm-current, vrmmax-current, vrmsoc-current, vrmsocmax-current,
+# slow_time, stapm_time (s), apu_skin_temp, dgpu_skin_temp (°C).
 #
 # Profiles are selected by name:
 #   ryzen-power eco
