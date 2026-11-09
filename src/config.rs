@@ -10,10 +10,17 @@ pub const DEFAULT_CONFIG: &str = r#"# ryzen-power configuration
 # Temperature is in degrees Celsius.
 # Values are passed to ryzenadj unchanged; ryzenadj and the firmware
 # decide what is acceptable.
-# Optional keys: apu_slow_limit, skin_temp_limit (mW or W), tdc, edc,
-# tdc_soc, edc_soc (mA or A) — also accepted under the ryzenadj names
-# vrm-current, vrmmax-current, vrmsoc-current, vrmsocmax-current,
-# slow_time, stapm_time (s), apu_skin_temp, dgpu_skin_temp (°C).
+# Current limits (mA or A): tdc/vrm-current, edc/vrmmax-current,
+#   tdc_soc/vrmsoc-current, edc_soc/vrmsocmax-current, vrmgfx-current,
+#   vrmcvip-current, vrmgfxmax_current, psi0-current, psi3cpu_current,
+#   psi0soc-current, psi3gfx_current.
+# Clocks (MHz): max/min-socclk-frequency, max/min-fclk-frequency,
+#   max/min-vcn, max/min-lclk, max/min-gfxclk, gfx-clk, oc-clk.
+# OC/curve: oc-volt, enable-oc, disable-oc (true/false),
+#   set-coall, set-coper, set-cogfx. Modes: power-saving, max-performance.
+# Other: prochot-deassertion-ramp, slow_time, stapm_time (s).
+# All ryzenadj options are supported; keys match ryzenadj long option names
+# (hyphens or underscores). Values pass through to ryzenadj unchanged.
 #
 # Profiles are selected by name:
 #   ryzen-power eco
@@ -305,10 +312,66 @@ pub struct Limits {
     pub tdc: Option<u32>,
     /// VRM SoC current limit, mA.
     pub tdc_soc: Option<u32>,
+    /// VRM GFX current limit, mA.
+    pub vrmgfx_current: Option<u32>,
+    /// VRM CVIP current limit, mA.
+    pub vrmcvip_current: Option<u32>,
     /// VRM maximum current limit VDD, mA.
     pub edc: Option<u32>,
     /// VRM SoC maximum current limit, mA.
     pub edc_soc: Option<u32>,
+    /// VRM GFX maximum current limit, mA.
+    pub vrmgfxmax_current: Option<u32>,
+    /// PSI0 VDD current limit, mA.
+    pub psi0_current: Option<u32>,
+    /// PSI3 CPU current limit, mA.
+    pub psi3cpu_current: Option<u32>,
+    /// PSI0 SoC current limit, mA.
+    pub psi0soc_current: Option<u32>,
+    /// PSI3 GFX current limit, mA.
+    pub psi3gfx_current: Option<u32>,
+    /// Maximum SoC clock frequency, MHz.
+    pub max_socclk_frequency: Option<u32>,
+    /// Minimum SoC clock frequency, MHz.
+    pub min_socclk_frequency: Option<u32>,
+    /// Maximum transmission (CPU-GPU) frequency, MHz.
+    pub max_fclk_frequency: Option<u32>,
+    /// Minimum transmission (CPU-GPU) frequency, MHz.
+    pub min_fclk_frequency: Option<u32>,
+    /// Maximum VCN (video core next), MHz.
+    pub max_vcn: Option<u32>,
+    /// Minimum VCN (video core next), MHz.
+    pub min_vcn: Option<u32>,
+    /// Maximum data launch clock, MHz.
+    pub max_lclk: Option<u32>,
+    /// Minimum data launch clock, MHz.
+    pub min_lclk: Option<u32>,
+    /// Maximum GFX clock, MHz.
+    pub max_gfxclk: Option<u32>,
+    /// Minimum GFX clock, MHz.
+    pub min_gfxclk: Option<u32>,
+    /// Ramp time after Prochot is deasserted.
+    pub prochot_deassertion_ramp: Option<u32>,
+    /// Forced GFX clock speed (Renoir only), MHz.
+    pub gfx_clk: Option<u32>,
+    /// Forced core clock speed (Renoir and up only), MHz.
+    pub oc_clk: Option<u32>,
+    /// Forced core VID (Renoir and up only).
+    pub oc_volt: Option<u32>,
+    /// Enable overclocking (Renoir and up only).
+    pub enable_oc: Option<bool>,
+    /// Disable overclocking (Renoir and up only).
+    pub disable_oc: Option<bool>,
+    /// All-core curve optimiser.
+    pub set_coall: Option<u32>,
+    /// Per-core curve optimiser.
+    pub set_coper: Option<u32>,
+    /// iGPU curve optimiser.
+    pub set_cogfx: Option<u32>,
+    /// Hidden power-saving mode.
+    pub power_saving: Option<bool>,
+    /// Hidden max-performance mode.
+    pub max_performance: Option<bool>,
 }
 
 impl Limits {
@@ -325,8 +388,36 @@ impl Limits {
             && self.stapm_time.is_none()
             && self.tdc.is_none()
             && self.tdc_soc.is_none()
+            && self.vrmgfx_current.is_none()
+            && self.vrmcvip_current.is_none()
             && self.edc.is_none()
             && self.edc_soc.is_none()
+            && self.vrmgfxmax_current.is_none()
+            && self.psi0_current.is_none()
+            && self.psi3cpu_current.is_none()
+            && self.psi0soc_current.is_none()
+            && self.psi3gfx_current.is_none()
+            && self.max_socclk_frequency.is_none()
+            && self.min_socclk_frequency.is_none()
+            && self.max_fclk_frequency.is_none()
+            && self.min_fclk_frequency.is_none()
+            && self.max_vcn.is_none()
+            && self.min_vcn.is_none()
+            && self.max_lclk.is_none()
+            && self.min_lclk.is_none()
+            && self.max_gfxclk.is_none()
+            && self.min_gfxclk.is_none()
+            && self.prochot_deassertion_ramp.is_none()
+            && self.gfx_clk.is_none()
+            && self.oc_clk.is_none()
+            && self.oc_volt.is_none()
+            && self.enable_oc != Some(true)
+            && self.disable_oc != Some(true)
+            && self.set_coall.is_none()
+            && self.set_coper.is_none()
+            && self.set_cogfx.is_none()
+            && self.power_saving != Some(true)
+            && self.max_performance != Some(true)
     }
 
     pub fn ryzenadj_args(&self) -> Vec<String> {
@@ -334,26 +425,11 @@ impl Limits {
         if let Some(v) = self.stapm {
             args.push(format!("--stapm-limit={v}"));
         }
-        if let Some(v) = self.slow {
-            args.push(format!("--slow-limit={v}"));
-        }
         if let Some(v) = self.fast {
             args.push(format!("--fast-limit={v}"));
         }
-        if let Some(v) = self.apu_slow_limit {
-            args.push(format!("--apu-slow-limit={v}"));
-        }
-        if let Some(v) = self.skin_temp_limit {
-            args.push(format!("--skin-temp-limit={v}"));
-        }
-        if let Some(v) = self.tctl {
-            args.push(format!("--tctl-temp={v}"));
-        }
-        if let Some(v) = self.apu_skin_temp {
-            args.push(format!("--apu-skin-temp={v}"));
-        }
-        if let Some(v) = self.dgpu_skin_temp {
-            args.push(format!("--dgpu-skin-temp={v}"));
+        if let Some(v) = self.slow {
+            args.push(format!("--slow-limit={v}"));
         }
         if let Some(v) = self.slow_time {
             args.push(format!("--slow-time={v}"));
@@ -361,17 +437,116 @@ impl Limits {
         if let Some(v) = self.stapm_time {
             args.push(format!("--stapm-time={v}"));
         }
+        if let Some(v) = self.tctl {
+            args.push(format!("--tctl-temp={v}"));
+        }
         if let Some(v) = self.tdc {
             args.push(format!("--vrm-current={v}"));
         }
         if let Some(v) = self.tdc_soc {
             args.push(format!("--vrmsoc-current={v}"));
         }
+        if let Some(v) = self.vrmgfx_current {
+            args.push(format!("--vrmgfx-current={v}"));
+        }
+        if let Some(v) = self.vrmcvip_current {
+            args.push(format!("--vrmcvip-current={v}"));
+        }
         if let Some(v) = self.edc {
             args.push(format!("--vrmmax-current={v}"));
         }
         if let Some(v) = self.edc_soc {
             args.push(format!("--vrmsocmax-current={v}"));
+        }
+        if let Some(v) = self.vrmgfxmax_current {
+            args.push(format!("--vrmgfxmax_current={v}"));
+        }
+        if let Some(v) = self.psi0_current {
+            args.push(format!("--psi0-current={v}"));
+        }
+        if let Some(v) = self.psi3cpu_current {
+            args.push(format!("--psi3cpu_current={v}"));
+        }
+        if let Some(v) = self.psi0soc_current {
+            args.push(format!("--psi0soc-current={v}"));
+        }
+        if let Some(v) = self.psi3gfx_current {
+            args.push(format!("--psi3gfx_current={v}"));
+        }
+        if let Some(v) = self.max_socclk_frequency {
+            args.push(format!("--max-socclk-frequency={v}"));
+        }
+        if let Some(v) = self.min_socclk_frequency {
+            args.push(format!("--min-socclk-frequency={v}"));
+        }
+        if let Some(v) = self.max_fclk_frequency {
+            args.push(format!("--max-fclk-frequency={v}"));
+        }
+        if let Some(v) = self.min_fclk_frequency {
+            args.push(format!("--min-fclk-frequency={v}"));
+        }
+        if let Some(v) = self.max_vcn {
+            args.push(format!("--max-vcn={v}"));
+        }
+        if let Some(v) = self.min_vcn {
+            args.push(format!("--min-vcn={v}"));
+        }
+        if let Some(v) = self.max_lclk {
+            args.push(format!("--max-lclk={v}"));
+        }
+        if let Some(v) = self.min_lclk {
+            args.push(format!("--min-lclk={v}"));
+        }
+        if let Some(v) = self.max_gfxclk {
+            args.push(format!("--max-gfxclk={v}"));
+        }
+        if let Some(v) = self.min_gfxclk {
+            args.push(format!("--min-gfxclk={v}"));
+        }
+        if let Some(v) = self.prochot_deassertion_ramp {
+            args.push(format!("--prochot-deassertion-ramp={v}"));
+        }
+        if let Some(v) = self.apu_skin_temp {
+            args.push(format!("--apu-skin-temp={v}"));
+        }
+        if let Some(v) = self.dgpu_skin_temp {
+            args.push(format!("--dgpu-skin-temp={v}"));
+        }
+        if let Some(v) = self.apu_slow_limit {
+            args.push(format!("--apu-slow-limit={v}"));
+        }
+        if let Some(v) = self.skin_temp_limit {
+            args.push(format!("--skin-temp-limit={v}"));
+        }
+        if let Some(v) = self.gfx_clk {
+            args.push(format!("--gfx-clk={v}"));
+        }
+        if let Some(v) = self.oc_clk {
+            args.push(format!("--oc-clk={v}"));
+        }
+        if let Some(v) = self.oc_volt {
+            args.push(format!("--oc-volt={v}"));
+        }
+        if self.enable_oc == Some(true) {
+            args.push("--enable-oc".to_string());
+        }
+        if self.disable_oc == Some(true) {
+            args.push("--disable-oc".to_string());
+        }
+        if let Some(v) = self.set_coall {
+            args.push(format!("--set-coall={v}"));
+        }
+        if let Some(v) = self.set_coper {
+            args.push(format!("--set-coper={v}"));
+        }
+        if let Some(v) = self.set_cogfx {
+            args.push(format!("--set-cogfx={v}"));
+        }
+        if self.power_saving == Some(true) {
+            args.push("--power-saving".to_string());
+        }
+        if self.max_performance == Some(true) {
+            args.push("--max-performance".to_string());
         }
         args
     }
@@ -890,9 +1065,79 @@ fn parse_profile(
             "tdc_soc" | "vrmsoc-current" => {
                 limits.tdc_soc = Some(parse_current(value, path, name, key)?)
             }
+            "vrmgfx-current" | "vrmgfx_current" => {
+                limits.vrmgfx_current = Some(parse_current(value, path, name, key)?)
+            }
+            "vrmcvip-current" | "vrmcvip_current" => {
+                limits.vrmcvip_current = Some(parse_current(value, path, name, key)?)
+            }
             "edc" | "vrmmax-current" => limits.edc = Some(parse_current(value, path, name, key)?),
             "edc_soc" | "vrmsocmax-current" => {
                 limits.edc_soc = Some(parse_current(value, path, name, key)?)
+            }
+            "vrmgfxmax-current" | "vrmgfxmax_current" => {
+                limits.vrmgfxmax_current = Some(parse_current(value, path, name, key)?)
+            }
+            "psi0-current" | "psi0_current" => {
+                limits.psi0_current = Some(parse_current(value, path, name, key)?)
+            }
+            "psi3cpu-current" | "psi3cpu_current" => {
+                limits.psi3cpu_current = Some(parse_current(value, path, name, key)?)
+            }
+            "psi0soc-current" | "psi0soc_current" => {
+                limits.psi0soc_current = Some(parse_current(value, path, name, key)?)
+            }
+            "psi3gfx-current" | "psi3gfx_current" => {
+                limits.psi3gfx_current = Some(parse_current(value, path, name, key)?)
+            }
+            "max-socclk-frequency" | "max_socclk_frequency" => {
+                limits.max_socclk_frequency = Some(parse_u32(value, path, key)?)
+            }
+            "min-socclk-frequency" | "min_socclk_frequency" => {
+                limits.min_socclk_frequency = Some(parse_u32(value, path, key)?)
+            }
+            "max-fclk-frequency" | "max_fclk_frequency" => {
+                limits.max_fclk_frequency = Some(parse_u32(value, path, key)?)
+            }
+            "min-fclk-frequency" | "min_fclk_frequency" => {
+                limits.min_fclk_frequency = Some(parse_u32(value, path, key)?)
+            }
+            "max-vcn" | "max_vcn" => limits.max_vcn = Some(parse_u32(value, path, key)?),
+            "min-vcn" | "min_vcn" => limits.min_vcn = Some(parse_u32(value, path, key)?),
+            "max-lclk" | "max_lclk" => limits.max_lclk = Some(parse_u32(value, path, key)?),
+            "min-lclk" | "min_lclk" => limits.min_lclk = Some(parse_u32(value, path, key)?),
+            "max-gfxclk" | "max_gfxclk" => {
+                limits.max_gfxclk = Some(parse_u32(value, path, key)?)
+            }
+            "min-gfxclk" | "min_gfxclk" => {
+                limits.min_gfxclk = Some(parse_u32(value, path, key)?)
+            }
+            "prochot-deassertion-ramp" | "prochot_deassertion_ramp" => {
+                limits.prochot_deassertion_ramp = Some(parse_u32(value, path, key)?)
+            }
+            "gfx-clk" | "gfx_clk" => limits.gfx_clk = Some(parse_u32(value, path, key)?),
+            "oc-clk" | "oc_clk" => limits.oc_clk = Some(parse_u32(value, path, key)?),
+            "oc-volt" | "oc_volt" => limits.oc_volt = Some(parse_u32(value, path, key)?),
+            "enable-oc" | "enable_oc" => {
+                limits.enable_oc = Some(parse_bool(value, path, key)?)
+            }
+            "disable-oc" | "disable_oc" => {
+                limits.disable_oc = Some(parse_bool(value, path, key)?)
+            }
+            "set-coall" | "set_coall" | "coall" => {
+                limits.set_coall = Some(parse_u32(value, path, key)?)
+            }
+            "set-coper" | "set_coper" | "coper" => {
+                limits.set_coper = Some(parse_u32(value, path, key)?)
+            }
+            "set-cogfx" | "set_cogfx" | "cogfx" => {
+                limits.set_cogfx = Some(parse_u32(value, path, key)?)
+            }
+            "power-saving" | "power_saving" => {
+                limits.power_saving = Some(parse_bool(value, path, key)?)
+            }
+            "max-performance" | "max_performance" => {
+                limits.max_performance = Some(parse_bool(value, path, key)?)
             }
             other => warnings.push(format!("[{name}]: unknown key '{other}' was ignored")),
         }
@@ -1005,7 +1250,15 @@ fn parse_bool(value: &str, path: &Path, key: &str) -> Result<bool> {
 
 fn parse_u32(value: &str, path: &Path, key: &str) -> Result<u32> {
     let cleaned = value.trim().replace('_', "");
-    cleaned.parse::<u32>().with_context(|| {
+    let parsed = if let Some(hex) = cleaned
+        .strip_prefix("0x")
+        .or_else(|| cleaned.strip_prefix("0X"))
+    {
+        u32::from_str_radix(hex, 16)
+    } else {
+        cleaned.parse::<u32>()
+    };
+    parsed.with_context(|| {
         format!(
             "{}: {key}: expected an integer, got '{value}'",
             path.display()
@@ -1236,5 +1489,75 @@ stapm = 50w
     fn parses_colors() {
         assert_eq!(Rgb::parse("#4ccb74"), Some(Rgb(0x4c, 0xcb, 0x74)));
         assert_eq!(Rgb::parse("#fff"), Some(Rgb(255, 255, 255)));
+    }
+
+    #[test]
+    fn parses_remaining_ryzenadj_options() {
+        let text = r#"[general]
+osd = false
+[eco]
+stapm = 25w
+vrmgfx-current = 20a
+vrmcvip-current = 10a
+vrmgfxmax_current = 30a
+psi0-current = 15a
+psi3cpu_current = 5a
+psi0soc-current = 8a
+psi3gfx_current = 4a
+max-socclk-frequency = 1200
+min-socclk-frequency = 400
+max-fclk-frequency = 1800
+min-fclk-frequency = 800
+max-vcn = 600
+min-vcn = 300
+max-lclk = 700
+min-lclk = 350
+max-gfxclk = 2200
+min-gfxclk = 400
+prochot-deassertion-ramp = 2
+gfx-clk = 1600
+oc-clk = 3800
+oc-volt = 104
+enable-oc = true
+set-coall = 0x00100000
+set-coper = 10
+set-cogfx = 5
+power-saving = true
+"#;
+        let config = parse(text);
+        let limits = &config.profiles[0].limits;
+        assert_eq!(limits.vrmgfx_current, Some(20_000));
+        assert_eq!(limits.vrmgfxmax_current, Some(30_000));
+        assert_eq!(limits.psi3cpu_current, Some(5_000));
+        assert_eq!(limits.max_socclk_frequency, Some(1200));
+        assert_eq!(limits.min_gfxclk, Some(400));
+        assert_eq!(limits.prochot_deassertion_ramp, Some(2));
+        assert_eq!(limits.oc_clk, Some(3800));
+        assert_eq!(limits.enable_oc, Some(true));
+        assert_eq!(limits.power_saving, Some(true));
+        let args = limits.ryzenadj_args();
+        assert!(args.contains(&"--vrmgfx-current=20000".to_string()));
+        assert!(args.contains(&"--vrmgfxmax_current=30000".to_string()));
+        assert!(args.contains(&"--psi3cpu_current=5000".to_string()));
+        assert!(args.contains(&"--psi3gfx_current=4000".to_string()));
+        assert!(args.contains(&"--max-socclk-frequency=1200".to_string()));
+        assert!(args.contains(&"--prochot-deassertion-ramp=2".to_string()));
+        assert!(args.contains(&"--gfx-clk=1600".to_string()));
+        assert!(args.contains(&"--oc-clk=3800".to_string()));
+        assert!(args.contains(&"--oc-volt=104".to_string()));
+        assert!(args.contains(&"--enable-oc".to_string()));
+        assert!(args.contains(&"--set-coall=1048576".to_string()));
+        assert!(args.contains(&"--set-coper=10".to_string()));
+        assert!(args.contains(&"--set-cogfx=5".to_string()));
+        assert!(args.contains(&"--power-saving".to_string()));
+    }
+
+    #[test]
+    fn accepts_flag_only_profile() {
+        let text = "[general]\nosd = false\n[saver]\nmax-performance = true\n";
+        let config = parse(text);
+        let limits = &config.profiles[0].limits;
+        assert_eq!(limits.max_performance, Some(true));
+        assert_eq!(limits.ryzenadj_args(), vec!["--max-performance".to_string()]);
     }
 }

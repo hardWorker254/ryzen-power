@@ -4,10 +4,17 @@
 # Temperature is in degrees Celsius.
 # Values are passed to ryzenadj unchanged; ryzenadj and the firmware
 # decide what is acceptable.
-# Optional keys: apu_slow_limit, skin_temp_limit (mW or W), tdc, edc,
-# tdc_soc, edc_soc (mA or A) — also accepted under the ryzenadj names
-# vrm-current, vrmmax-current, vrmsoc-current, vrmsocmax-current,
-# slow_time, stapm_time (s), apu_skin_temp, dgpu_skin_temp (°C).
+# Current limits (mA or A): tdc/vrm-current, edc/vrmmax-current,
+#   tdc_soc/vrmsoc-current, edc_soc/vrmsocmax-current, vrmgfx-current,
+#   vrmcvip-current, vrmgfxmax_current, psi0-current, psi3cpu_current,
+#   psi0soc-current, psi3gfx_current.
+# Clocks (MHz): max/min-socclk-frequency, max/min-fclk-frequency,
+#   max/min-vcn, max/min-lclk, max/min-gfxclk, gfx-clk, oc-clk.
+# OC/curve: oc-volt, enable-oc, disable-oc (true/false),
+#   set-coall, set-coper, set-cogfx. Modes: power-saving, max-performance.
+# Other: prochot-deassertion-ramp, slow_time, stapm_time (s).
+# All ryzenadj options are supported; keys match ryzenadj long option names
+# (hyphens or underscores). Values pass through to ryzenadj unchanged.
 #
 # Profiles are selected by name:
 #   ryzen-power eco

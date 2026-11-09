@@ -11,7 +11,7 @@ Tested on an **AMD Ryzen 7 PRO 8845HS** with Artix Linux + Hyprland.
 ## Features
 
 - Reads profiles from `~/.config/ryzen-power/config.conf`.
-- Changes `STAPM`, `PPT slow`, `PPT fast`, APU slow and skin temperature power limits, `Tctl`, APU/dGPU skin temperatures, and optional current/time limits through `ryzenadj`.
+- Passes `ryzenadj` settings per profile — power/temperature limits, VRM/PSI currents, clocks, OC/curve options, and modes — through `ryzenadj`. All `ryzenadj` options are supported.
 - Shows a translucent OSD with the profile label, active limits, and a segmented scale.
 - Uses custom theme images from `~/.config/ryzen-power/themes/<theme>/<profile>.img`.
 - Falls back to the default theme, the profile icon, and then to built-in glyphs.
@@ -231,27 +231,57 @@ tctl = 95
 
 ### Profile keys
 
-| Key | Meaning | Units |
+Keys match `ryzenadj` long option names (hyphens or underscores). All `ryzenadj` options are supported; values are passed through unchanged.
+
+| Key | Meaning | Units / values |
 |---|---|---|
-| `stapm` | Sustained Power Limit | mW (`45000`) or W (`45w`) |
-| `slow` | PPT slow / Average Power Limit | mW or W |
-| `fast` | PPT fast / Actual Power Limit | mW or W |
-| `apu_slow_limit` | APU PPT Slow Power limit (A+A dGPU platforms) | mW or W |
-| `skin_temp_limit` | Skin Temperature Power Limit (a power limit, despite the name) | mW or W |
-| `tctl` | Tctl temperature limit | °C |
-| `apu_skin_temp` | STT LIMIT APU skin temperature | °C |
-| `dgpu_skin_temp` | STT LIMIT dGPU skin temperature | °C |
-| `tdc` | TDC LIMIT VDD (alias: `vrm-current`) | mA or A |
-| `edc` | EDC LIMIT VDD (alias: `vrmmax-current`) | mA or A |
-| `tdc_soc` | TDC LIMIT SoC (alias: `vrmsoc-current`) | mA or A |
-| `edc_soc` | EDC LIMIT SoC (alias: `vrmsocmax-current`) | mA or A |
-| `slow_time` | Slow PPT constant time | seconds |
-| `stapm_time` | STAPM constant time | seconds |
+| `stapm` | Sustained Power Limit (`--stapm-limit`) | mW (`45000`) or W (`45w`) |
+| `slow` | PPT slow / Average Power Limit (`--slow-limit`) | mW or W |
+| `fast` | PPT fast / Actual Power Limit (`--fast-limit`) | mW or W |
+| `apu_slow_limit` | APU PPT Slow Power limit, A+A dGPU (`--apu-slow-limit`) | mW or W |
+| `skin_temp_limit` | Skin Temperature Power Limit (`--skin-temp-limit`) | mW or W |
+| `tctl` | Tctl temperature limit (`--tctl-temp`) | °C |
+| `apu_skin_temp` | STT LIMIT APU skin temperature (`--apu-skin-temp`) | °C |
+| `dgpu_skin_temp` | STT LIMIT dGPU skin temperature (`--dgpu-skin-temp`) | °C |
+| `tdc` / `vrm-current` | TDC LIMIT VDD (`--vrm-current`) | mA or A |
+| `edc` / `vrmmax-current` | EDC LIMIT VDD (`--vrmmax-current`) | mA or A |
+| `tdc_soc` / `vrmsoc-current` | TDC LIMIT SoC (`--vrmsoc-current`) | mA or A |
+| `edc_soc` / `vrmsocmax-current` | EDC LIMIT SoC (`--vrmsocmax-current`) | mA or A |
+| `vrmgfx-current` | TDC LIMIT GFX (`--vrmgfx-current`) | mA or A |
+| `vrmcvip-current` | TDC LIMIT CVIP (`--vrmcvip-current`) | mA or A |
+| `vrmgfxmax_current` | EDC LIMIT GFX (`--vrmgfxmax_current`) | mA or A |
+| `psi0-current` | PSI0 VDD Current Limit (`--psi0-current`) | mA or A |
+| `psi3cpu_current` | PSI3 CPU Current Limit (`--psi3cpu_current`) | mA or A |
+| `psi0soc-current` | PSI0 SoC Current Limit (`--psi0soc-current`) | mA or A |
+| `psi3gfx_current` | PSI3 GFX Current Limit (`--psi3gfx_current`) | mA or A |
+| `max-socclk-frequency` | Maximum SoC Clock Frequency (`--max-socclk-frequency`) | MHz |
+| `min-socclk-frequency` | Minimum SoC Clock Frequency (`--min-socclk-frequency`) | MHz |
+| `max-fclk-frequency` | Maximum CPU-GPU transmission frequency (`--max-fclk-frequency`) | MHz |
+| `min-fclk-frequency` | Minimum CPU-GPU transmission frequency (`--min-fclk-frequency`) | MHz |
+| `max-vcn` | Maximum VCN / VCE (`--max-vcn`) | MHz |
+| `min-vcn` | Minimum VCN / VCE (`--min-vcn`) | MHz |
+| `max-lclk` | Maximum Data Launch Clock (`--max-lclk`) | MHz |
+| `min-lclk` | Minimum Data Launch Clock (`--min-lclk`) | MHz |
+| `max-gfxclk` | Maximum GFX Clock (`--max-gfxclk`) | MHz |
+| `min-gfxclk` | Minimum GFX Clock (`--min-gfxclk`) | MHz |
+| `gfx-clk` | Forced GFX Clock Speed, Renoir only (`--gfx-clk`) | MHz |
+| `oc-clk` | Forced Core Clock Speed, Renoir+ (`--oc-clk`) | MHz |
+| `oc-volt` | Forced Core VID, Renoir+ (`--oc-volt`) | raw value |
+| `enable-oc` | Enable OC, Renoir+ (`--enable-oc`) | `true`/`false` |
+| `disable-oc` | Disable OC, Renoir+ (`--disable-oc`) | `true`/`false` |
+| `set-coall` | All-core Curve Optimiser (`--set-coall`) | integer |
+| `set-coper` | Per-core Curve Optimiser (`--set-coper`) | integer |
+| `set-cogfx` | iGPU Curve Optimiser (`--set-cogfx`) | integer |
+| `power-saving` | Hidden power-saving mode (`--power-saving`) | `true`/`false` |
+| `max-performance` | Hidden max-performance mode (`--max-performance`) | `true`/`false` |
+| `prochot-deassertion-ramp` | Ramp time after Prochot deassertion (`--prochot-deassertion-ramp`) | integer |
+| `slow_time` | Slow PPT constant time (`--slow-time`) | seconds |
+| `stapm_time` | STAPM constant time (`--stapm-time`) | seconds |
 | `label` | Name shown in the OSD | string |
 | `icon` | GTK symbolic icon name; built-in glyph if unavailable | string |
 | `color` | Profile accent color in the OSD | `#rgb` or `#rrggbb` |
 
-You can add your own profiles: the section name becomes the command name. Values are passed to `ryzenadj` unchanged — there are no application-side limits on power, current, temperature, or time; `ryzenadj` and the firmware decide what is acceptable.
+You can add your own profiles: the section name becomes the command name. Values are passed to `ryzenadj` unchanged — there are no application-side limits on power, current, temperature, time, frequency, or curve values; `ryzenadj` and the firmware decide what is acceptable. For platform-specific/advanced options (OC, curve optimizer, hidden modes), use them with care.
 
 The OSD scale is based on `fast`: profiles are sorted by that limit, and the selected profile fills the corresponding part of the scale.
 
