@@ -58,8 +58,23 @@ osd_width = 380
 osd_timeout_ms = 1400
 
 # Card appearance.
+background_color = #101218
 background_opacity = 0.88
+border_color = #ffffff
+border_opacity = 0.10
+border_width = 1
 border_radius = 18
+# Horizontal/vertical padding inside the card, in pixels.
+padding_x = 18
+padding_y = 13
+# Leave empty to use the system default font.
+font_family =
+
+# Text colors.
+text_color = #f5f7fb
+subtitle_color =
+subtitle_opacity = 0.62
+badge_color =
 
 # Icon placement: left | right | top | none
 icon_position = left
@@ -192,8 +207,19 @@ pub struct General {
     pub osd_position: OsdPosition,
     pub osd_margin: i32,
     pub osd_width: i32,
+    pub background_color: Rgb,
     pub background_opacity: f64,
+    pub border_color: Rgb,
+    pub border_opacity: f64,
+    pub border_width: i32,
     pub border_radius: i32,
+    pub padding_x: i32,
+    pub padding_y: i32,
+    pub font_family: String,
+    pub text_color: Rgb,
+    pub subtitle_color: Option<Rgb>,
+    pub subtitle_opacity: f64,
+    pub badge_color: Option<Rgb>,
     pub icon_position: IconPosition,
     pub icon_size: i32,
     pub icon_background: IconBackground,
@@ -220,8 +246,19 @@ impl Default for General {
             osd_position: OsdPosition::Bottom,
             osd_margin: 110,
             osd_width: 380,
+            background_color: Rgb(0x10, 0x12, 0x18),
             background_opacity: 0.88,
+            border_color: Rgb(0xff, 0xff, 0xff),
+            border_opacity: 0.10,
+            border_width: 1,
             border_radius: 18,
+            padding_x: 18,
+            padding_y: 13,
+            font_family: String::new(),
+            text_color: Rgb(0xf5, 0xf7, 0xfb),
+            subtitle_color: None,
+            subtitle_opacity: 0.62,
+            badge_color: None,
             icon_position: IconPosition::Left,
             icon_size: 24,
             icon_background: IconBackground::Circle,
@@ -898,6 +935,9 @@ fn parse_general(values: &[(String, String)], general: &mut General, path: &Path
                 }
                 general.osd_width = v as i32;
             }
+            "background_color" => {
+                general.background_color = parse_color(value, path, &format!("general.{key}"))?;
+            }
             "background_opacity" => {
                 let v = parse_f64(value, path, key)?;
                 if !(0.0..=1.0).contains(&v) {
@@ -908,12 +948,78 @@ fn parse_general(values: &[(String, String)], general: &mut General, path: &Path
                 }
                 general.background_opacity = v;
             }
+            "border_color" => {
+                general.border_color = parse_color(value, path, &format!("general.{key}"))?;
+            }
+            "border_opacity" => {
+                let v = parse_f64(value, path, key)?;
+                if !(0.0..=1.0).contains(&v) {
+                    bail!(
+                        "{}: general.{key} must be between 0.0 and 1.0",
+                        path.display()
+                    );
+                }
+                general.border_opacity = v;
+            }
+            "border_width" => {
+                let v = parse_u32(value, path, key)?;
+                if v > 16 {
+                    bail!("{}: general.{key} must not exceed 16 px", path.display());
+                }
+                general.border_width = v as i32;
+            }
             "border_radius" => {
                 let v = parse_u32(value, path, key)?;
                 if v > 48 {
                     bail!("{}: general.{key} must not exceed 48 px", path.display());
                 }
                 general.border_radius = v as i32;
+            }
+            "padding_x" => {
+                let v = parse_u32(value, path, key)?;
+                if v > 64 {
+                    bail!("{}: general.{key} must not exceed 64 px", path.display());
+                }
+                general.padding_x = v as i32;
+            }
+            "padding_y" => {
+                let v = parse_u32(value, path, key)?;
+                if v > 64 {
+                    bail!("{}: general.{key} must not exceed 64 px", path.display());
+                }
+                general.padding_y = v as i32;
+            }
+            "font_family" => {
+                general.font_family = value.trim().to_string();
+            }
+            "text_color" => {
+                general.text_color = parse_color(value, path, &format!("general.{key}"))?;
+            }
+            "subtitle_color" => {
+                let trimmed = value.trim();
+                general.subtitle_color = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(parse_color(trimmed, path, &format!("general.{key}"))?)
+                };
+            }
+            "subtitle_opacity" => {
+                let v = parse_f64(value, path, key)?;
+                if !(0.0..=1.0).contains(&v) {
+                    bail!(
+                        "{}: general.{key} must be between 0.0 and 1.0",
+                        path.display()
+                    );
+                }
+                general.subtitle_opacity = v;
+            }
+            "badge_color" => {
+                let trimmed = value.trim();
+                general.badge_color = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(parse_color(trimmed, path, &format!("general.{key}"))?)
+                };
             }
             "icon_position" => {
                 general.icon_position = match value.trim().to_ascii_lowercase().as_str() {
@@ -1270,6 +1376,15 @@ fn parse_f64(value: &str, path: &Path, key: &str) -> Result<f64> {
     value.trim().parse::<f64>().with_context(|| {
         format!(
             "{}: {key}: expected a number, got '{value}'",
+            path.display()
+        )
+    })
+}
+
+fn parse_color(value: &str, path: &Path, key: &str) -> Result<Rgb> {
+    Rgb::parse(value).with_context(|| {
+        format!(
+            "{}: {key}: expected #rgb or #rrggbb, got '{value}'",
             path.display()
         )
     })

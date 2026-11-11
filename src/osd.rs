@@ -397,29 +397,45 @@ fn theme_image(path: &Path, size: i32) -> Option<gtk::Image> {
 
 fn build_css(config: &Config, data: &OsdData) -> String {
     let general = &config.general;
-    let opacity = general.background_opacity.clamp(0.0, 1.0);
+    let bg = general.background_color.as_f64();
+    let bg_opacity = general.background_opacity.clamp(0.0, 1.0);
+    let border = general.border_color.as_f64();
+    let border_opacity = general.border_opacity.clamp(0.0, 1.0);
+    let text = general.text_color.as_f64();
+    let subtitle_rgb = general.subtitle_color.unwrap_or(general.text_color).as_f64();
+    let subtitle_opacity = general.subtitle_opacity.clamp(0.0, 1.0);
+    let badge_rgb = general.badge_color.unwrap_or(general.text_color).as_f64();
+    let font_family = if general.font_family.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "    font-family: \"{}\";\n",
+            general.font_family.replace('\\', "\\\\").replace('"', "\\\"")
+        )
+    };
+
     let mut css = format!(
         r#"
 window {{
     background: transparent;
 }}
 .osd-card {{
-    background-color: rgba(16, 18, 24, {opacity:.2});
+{font_family}    background-color: rgba({bg_r:.0}, {bg_g:.0}, {bg_b:.0}, {bg_opacity:.2});
     border-radius: {radius}px;
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    padding: 13px 18px 12px 18px;
+    border: {border_width}px solid rgba({br:.0}, {bgc:.0}, {bb:.0}, {border_opacity:.2});
+    padding: {pad_y}px {pad_x}px {pad_y}px {pad_x}px;
 }}
 .osd-title {{
-    color: #f5f7fb;
+    color: rgb({tr:.0}, {tg:.0}, {tb:.0});
     font-size: {title_size}px;
     font-weight: bold;
 }}
 .osd-sub {{
-    color: rgba(245, 247, 251, 0.62);
+    color: rgba({sr:.0}, {sg:.0}, {sb:.0}, {subtitle_opacity:.2});
     font-size: {subtitle_size}px;
 }}
 .osd-badge {{
-    color: #f5f7fb;
+    color: rgb({bar_r:.0}, {bar_g:.0}, {bar_b:.0});
     font-size: {badge_size}px;
     font-weight: bold;
 }}
@@ -437,9 +453,31 @@ window {{
     background-color: transparent;
 }}
 "#,
+        font_family = font_family,
+        bg_r = bg.0 * 255.0,
+        bg_g = bg.1 * 255.0,
+        bg_b = bg.2 * 255.0,
+        bg_opacity = bg_opacity,
         radius = general.border_radius,
+        border_width = general.border_width,
+        br = border.0 * 255.0,
+        bgc = border.1 * 255.0,
+        bb = border.2 * 255.0,
+        border_opacity = border_opacity,
+        pad_x = general.padding_x,
+        pad_y = general.padding_y,
+        tr = text.0 * 255.0,
+        tg = text.1 * 255.0,
+        tb = text.2 * 255.0,
         title_size = general.title_size,
+        sr = subtitle_rgb.0 * 255.0,
+        sg = subtitle_rgb.1 * 255.0,
+        sb = subtitle_rgb.2 * 255.0,
+        subtitle_opacity = subtitle_opacity,
         subtitle_size = general.subtitle_size,
+        bar_r = badge_rgb.0 * 255.0,
+        bar_g = badge_rgb.1 * 255.0,
+        bar_b = badge_rgb.2 * 255.0,
         badge_size = general.badge_size,
         icon_padding = general.icon_padding,
     );
